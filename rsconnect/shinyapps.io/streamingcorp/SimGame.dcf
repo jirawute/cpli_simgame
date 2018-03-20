@@ -1,0 +1,12 @@
+name: SimGame
+title: SimGame
+username:
+account: streamingcorp
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 302362
+bundleId: 1277571
+url: https://streamingcorp.shinyapps.io/SimGame/
+when: 1521505447.16301
+asMultiple: FALSE
+asStatic: FALSE
