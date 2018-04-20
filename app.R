@@ -23,7 +23,7 @@ ui <- fluidPage(
       
       sliderInput("exp", "Experience",
                   min = 0, max = 1,
-                  value = 0.2, step = 0.1),
+                  value = 0.1, step = 0.1),
       sliderInput("n", "Number of Customer:",
                   min = 0, max = 2000000,
                   value = 1000000, step = 10000,pre="#",sep=","),
@@ -54,7 +54,7 @@ ui <- fluidPage(
                   tabPanel("EXP", tableOutput("myExp")),
                   tabPanel("Temp1", tableOutput("t1")),
                   tabPanel("Temp2", tableOutput("t2")),
-                  tabPanel("Assumption", tableOutput("customer_assumption")),
+                  #tabPanel("Assumption", tableOutput("customer_assumption")),
                   tabPanel("Mass", plotOutput("customer_mass")),
                   tabPanel("Premium", plotOutput("customer_premium"))
       )
@@ -124,9 +124,9 @@ server <- function(input, output) {
     output[output<1]<-0
     output <-output*filter
 
-    min <- pmin(colSums(output)*12,stock)
+    min <- pmin(colSums(output)*5,stock)
     
-    v$out<-rbind(min,colSums(output),stock)
+    v$out<-rbind(min,colSums(output)*5,stock)
     
      temp<- output
      for(i in 1:players){
@@ -139,7 +139,7 @@ server <- function(input, output) {
 
      v$t1<-rbind(output[1:10,],array("X",c(2,players)),output[(mass_sample+1):(mass_sample+10),])
      v$t2<-rbind(customer[1:10,],array("X",c(2,6)),customer[(mass_sample+1):(mass_sample+10),])
-     colSums(output)
+     min
       }
   
   readData <- function() {
@@ -150,40 +150,38 @@ server <- function(input, output) {
     
     data
     }
-  writeData <- function(data) {
+  writeData <- function(data,y) {
     sheet <- gs_title("Simulation Game")
-    
-    gs_edit_cells(sheet, ws = "input", anchor="c37",byrow=TRUE, input = data, trim = TRUE)
-
+    rows <- paste("c",35+y,sep="")
+    gs_edit_cells(sheet, ws = "input", anchor=rows, byrow=TRUE, input = data, trim = FALSE)
   }
-  sliderValues <- reactive({
-    
-    data.frame(
-      Name = c(
-        "E",
-        "Experience",
-        "No. of Customer"
-      ),
-      Value = as.character(c(
-        input$e,
-        input$exp,
-        input$n
-      )),
-      stringsAsFactors = FALSE)
-    
-  })
-  
+
+  # sliderValues <- 
+  #   ({
+  #     data.frame(
+  #       Name = c(
+  #         "E",
+  #         "Experience",
+  #         "No. of Customer"
+  #       ),
+  #       Value = as.character(c(
+  #         input$e,
+  #         input$exp,
+  #         input$n
+  #       )),
+  #       stringsAsFactors = FALSE)
+  #     
+  #   })
   
   values <- reactiveValues(data = NULL,out=NULL,exp=NULL,year=0)
   
   observeEvent(input$run, {
     
-    values$year<- "XXXXX"
+    values$year<-values$year+1
     values$data <-readData()
     out<- cal(values)
-    writeData(out)
-    year<-year +1
-    values$year<-year
+  
+    writeData(out,values$year)
     
     
   })
