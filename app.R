@@ -16,14 +16,14 @@ ui <- fluidPage(
       # h2(textOutput("currentTime")),
       h3(textOutput("round")),
       # 
-      sliderInput("e", "Epsilon",
-                  min = 0, max = 1,
-                  value = 0.2, step = 0.1,
-                  animate = TRUE),
-      
-      sliderInput("exp", "Experience",
-                  min = 0, max = 1,
-                  value = 0.1, step = 0.1),
+      # sliderInput("e", "Epsilon",
+      #             min = 0, max = 1,
+      #             value = 0.2, step = 0.1,
+      #             animate = TRUE),
+      # 
+      # sliderInput("exp", "Experience",
+      #             min = 0, max = 1,
+      #             value = 0.1, step = 0.1),
       sliderInput("n", "Number of Customer:",
                   min = 0, max = 2000000,
                   value = 1000000, step = 10000,pre="#",sep=","),
@@ -32,7 +32,7 @@ ui <- fluidPage(
       
       
       # Include clarifying text ----
-      helpText("Note: กด RUN เพื่อคำนวณ, Clear เพื่อ reset customer experience"),
+      helpText("Note: กด RUN เพื่อคำนวณปีถัดไป,  Reset เพื่อเริ่มต้นใหม่และ reset customer experience"),
       
       # Input: actionButton() to defer the rendering of output ----
       # until the user explicitly clicks the button (rather than
@@ -41,7 +41,7 @@ ui <- fluidPage(
       # time-consuming.
       actionButton("run", "RUN"),
       
-      actionButton("reset", "Clear")
+      actionButton("reset", "Reset")
       
     ),
     # Main panel for displaying outputs ----
@@ -74,6 +74,8 @@ server <- function(input, output) {
   players <- 7
   dimension <- c(count,players)
   r<-0.2
+  eps<- 0.2
+  exp <- 0.1
   year<-0
   
   df <- data.frame( Name = c("Price" , "Packaging" , "MKT-T" , "MKT-O" ,"MKT-P", "Material"),
@@ -118,7 +120,7 @@ server <- function(input, output) {
       }
     }
     
-    output<-customer %*% player_in +v$exp+ rnorm(dimension[1]*dimension[2],0,input$e)+filter*10
+    output<-customer %*% player_in +v$exp+ rnorm(dimension[1]*dimension[2],0,eps)+filter*10
     max <- apply(output, 1, max)
     output <- output - max+1
     output[output<1]<-0
@@ -135,7 +137,7 @@ server <- function(input, output) {
      ret <- v$exp*output
      ret[ret!=0]<-1
      v$ret <- colSums(ret)/colSums(output)
-     v$exp<- v$exp+ temp*input$exp*0.1
+     v$exp<- v$exp+ temp*exp*0.1
 
      v$t1<-rbind(output[1:10,],array("X",c(2,players)),output[(mass_sample+1):(mass_sample+10),])
      v$t2<-rbind(customer[1:10,],array("X",c(2,6)),customer[(mass_sample+1):(mass_sample+10),])
