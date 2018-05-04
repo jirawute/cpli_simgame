@@ -68,14 +68,19 @@ server <- function(input, output) {
   library(googlesheets)
   suppressMessages(library(dplyr))
   library(shiny)
-  mass_sample <-1600000
-  premium_sample <-400000
-  count<-mass_sample+premium_sample
+  
+  sheet <- gs_title("Simulation Game")
+  
+  premium_ratio <- 1/4
+  total_customer <- 2000000
+  mass_sample <-total_customer*(1-premium_ratio)
+  premium_sample <-total_customer*premium_ratio
+  
   players <- 7
-  dimension <- c(count,players)
+  dimension <- c(total_customer,players)
   r<-0.2
   eps<- 0.2
-  exp <- 0.1
+  exp <- 0.3
   year<-0
   
   df <- data.frame( Name = c("Price" , "Packaging" , "MKT-T" , "MKT-O" ,"MKT-P", "Material"),
@@ -114,13 +119,13 @@ server <- function(input, output) {
     
     for(i in 1:dimension[2]){
       if(v$data[1,i]=="Mass"){
-        filter[1:(input$n*4/5),i]<-1
+        filter[1:(input$n*3/4),i]<-1
       }else{
-        filter[(mass_sample+1):(mass_sample+input$n/5),i]<-1
+        filter[(mass_sample+1):(mass_sample+input$n/4),i]<-1
       }
     }
     
-    output<-customer %*% player_in +v$exp+ rnorm(dimension[1]*dimension[2],0,eps)+filter*10
+    output<-customer %*% player_in +v$exp+ rnorm(dimension[1]*dimension[2],0,eps)+filter*100
     max <- apply(output, 1, max)
     output <- output - max+1
     output[output<1]<-0
@@ -139,23 +144,20 @@ server <- function(input, output) {
      v$ret <- colSums(ret)/colSums(output)
      v$exp<- v$exp+ temp*exp*0.1
 
-     v$t1<-rbind(output[1:10,],array("X",c(2,players)),output[(mass_sample+1):(mass_sample+10),])
-     v$t2<-rbind(customer[1:10,],array("X",c(2,6)),customer[(mass_sample+1):(mass_sample+10),])
+     # v$t1<-rbind(output[1:10,],array("X",c(2,players)),output[(mass_sample+1):(mass_sample+10),])
+     v$t1<-rbind(v$exp[1:10,],array("X",c(2,7)),v$exp[(mass_sample+1):(mass_sample+10),])
+     v$t2<-rbind(ret[1:10,],array("X",c(2,7)),ret[(mass_sample+1):(mass_sample+10),])
      min
-      }
+  }
   
-  readData <- function() {
-    sheet <- gs_title("Simulation Game")
-
-    data <- gs_read(sheet,ws="input",range="c9:i18")
-    # rownames(data)<-df$Name
-    
-    data
+  validation <- function(y) {
+    ty <- gs_read(sheet,ws="Input",range="b9:b9")
+      return(as.numeric(ty)==y)
+    TRUE
     }
   writeData <- function(data,y) {
-    sheet <- gs_title("Simulation Game")
     rows <- paste("c",35+y,sep="")
-    gs_edit_cells(sheet, ws = "input", anchor=rows, byrow=TRUE, input = data, trim = FALSE)
+    gs_edit_cells(sheet, ws = "Input", anchor=rows, byrow=TRUE, input = data, trim = FALSE)
   }
 
   # sliderValues <- 
@@ -178,13 +180,17 @@ server <- function(input, output) {
   values <- reactiveValues(data = NULL,out=NULL,exp=NULL,year=0)
   
   observeEvent(input$run, {
-    
-    values$year<-values$year+1
-    values$data <-readData()
-    out<- cal(values)
-  
-    writeData(out,values$year)
-    
+    if(TRUE){
+      values$msg <- ""
+      values$year<-values$year+1
+      values$data<- gs_read(sheet,ws="Input",range="c9:i18")
+      out<- cal(values)
+      writeData(out,values$year)
+      
+    }else{
+      values$msg<- "ERROR"
+    }
+
     
   })
   
@@ -224,7 +230,7 @@ server <- function(input, output) {
     boxplot(customer_premium,main="Premium Customer",ylab="Decision Weighted", ylim=c(0,0.5))
   })
   round<-reactive({
-    paste("Year",values$year)
+    paste("Year",values$year,values$msg)
   })
   output$round <- renderText({
     round()
