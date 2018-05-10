@@ -54,7 +54,7 @@ ui <- fluidPage(
                   tabPanel("EXP", tableOutput("myExp")),
                   tabPanel("Temp1", tableOutput("t1")),
                   tabPanel("Temp2", tableOutput("t2")),
-                  #tabPanel("Assumption", tableOutput("customer_assumption")),
+                  tabPanel("Temp3", tableOutput("t3")),
                   tabPanel("Mass", plotOutput("customer_mass")),
                   tabPanel("Premium", plotOutput("customer_premium"))
       )
@@ -71,7 +71,7 @@ server <- function(input, output) {
   
   sheet <- gs_title("Simulation Game")
   
-  premium_ratio <- 1/4
+  premium_ratio <- 0.25
   total_customer <- 2000000
   mass_sample <-total_customer*(1-premium_ratio)
   premium_sample <-total_customer*premium_ratio
@@ -102,6 +102,7 @@ server <- function(input, output) {
                            runif(premium_sample, df$Premium[6]*(1-r), df$Premium[6]*(1+r)))
   customer<-rbind(customer_mass,customer_premium)
   
+  consumption <- floor(runif(total_customer,1,10))#each customer consume 1-9 icecreme/year
   colnames(customer_mass)<-df$Name
   colnames(customer_premium)<-df$Name
   
@@ -117,11 +118,11 @@ server <- function(input, output) {
     
     filter<-array(0,dimension)
     
-    for(i in 1:dimension[2]){
+    for(i in 1:players){
       if(v$data[1,i]=="Mass"){
-        filter[1:(input$n*3/4),i]<-1
+        filter[1:(input$n*(1-premium_ratio)),i]<-1
       }else{
-        filter[(mass_sample+1):(mass_sample+input$n/4),i]<-1
+        filter[(mass_sample+1):(mass_sample+input$n*premium_ratio),i]<-1
       }
     }
     
@@ -130,23 +131,23 @@ server <- function(input, output) {
     output <- output - max+1
     output[output<1]<-0
     output <-output*filter
+    
+    consume <- output * consumption
 
-    min <- pmin(colSums(output)*5,stock)
+    min <- pmin(colSums(consume),stock)
     
-    v$out<-rbind(min,colSums(output)*5,stock)
+    v$out<-rbind(min,colSums(consume),stock)
     
-     temp<- output
-     for(i in 1:players){
-     temp[,i] <- output[,i]*expTY[i]
-     }
+     
+     temp <- t(t(output)*expTY)
+     
      ret <- v$exp*output
      ret[ret!=0]<-1
      v$ret <- colSums(ret)/colSums(output)
      v$exp<- v$exp+ temp*exp*0.1
-
-     # v$t1<-rbind(output[1:10,],array("X",c(2,players)),output[(mass_sample+1):(mass_sample+10),])
-     v$t1<-rbind(v$exp[1:10,],array("X",c(2,7)),v$exp[(mass_sample+1):(mass_sample+10),])
-     v$t2<-rbind(ret[1:10,],array("X",c(2,7)),ret[(mass_sample+1):(mass_sample+10),])
+     v$t1<-rbind(consume[1:10,],array("X",c(2,players)),consume[(mass_sample+1):(mass_sample+10),])
+     v$t2<-rbind(v$exp[1:10,],array("X",c(2,7)),v$exp[(mass_sample+1):(mass_sample+10),])
+     v$t3 <- head(max-100,n=100)
      min
   }
   
@@ -209,14 +210,20 @@ server <- function(input, output) {
     values$out
   })
   output$myExp <- renderTable({
-    if (is.null(values$exp)) return("NULL")
-    rbind(colSums(values$exp),values$ret)
+    if (is.null(values$exp)) {return("NULL")}
+      temp_exp <- values$exp
+      temp_exp[temp_exp!=0]<- 1
+      rbind(colSums(values$exp)/colSums(temp_exp),values$ret)
+    
   })
   output$t1 <- renderTable({
      values$t1
   })
   output$t2 <- renderTable({
     values$t2
+  })
+  output$t3 <- renderTable({
+    values$t3
   })
   # Generate a summary of the data ----
   output$customer_assumption <- renderTable({
