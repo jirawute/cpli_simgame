@@ -23,7 +23,7 @@ ui <- fluidPage(
       # 
       sliderInput("exp", "Experience",
                   min = 0, max = 1,
-                  value = 0.1, step = 0.1),
+                  value = 0.5, step = 0.1),
       sliderInput("n", "Market SalesQTY:",
                   min = 0, max = 10000000,
                   value = 5000000, step = 10000,pre="#",sep=","),
@@ -101,7 +101,7 @@ server <- function(input, output) {
                            runif(premium_sample, df$Premium[6]*(1-r), df$Premium[6]*(1+r)))
   customer<-rbind(customer_mass,customer_premium)
   
-  consumption <- floor(runif(total_customer,1,19))#each customer consume 1-9 icecreme/year
+  #consumption <- floor(runif(total_customer,1,19))#each customer consume 1-9 icecreme/year
   colnames(customer_mass)<-df$Name
   colnames(customer_premium)<-df$Name
   
@@ -131,7 +131,7 @@ server <- function(input, output) {
      a[a<1]<-0
     winner <-a*filter #choice selected
 
-    consume <- winner * consumption #Actual consumption to calculate total SalesQTY of each player
+    consume <- winner *10# consumption #Actual consumption to calculate total SalesQTY of each player
 
     min <- pmin(colSums(consume),stock) #SalesQTY capped by total stock available
 
