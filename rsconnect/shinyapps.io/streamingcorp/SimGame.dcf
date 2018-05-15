@@ -5,8 +5,8 @@ account: streamingcorp
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 302362
-bundleId: 1356858
+bundleId: 1374580
 url: https://streamingcorp.shinyapps.io/SimGame/
-when: 1525482902.87641
+when: 1526377379.2318
 asMultiple: FALSE
 asStatic: FALSE

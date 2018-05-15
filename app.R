@@ -21,18 +21,18 @@ ui <- fluidPage(
       #             value = 0.2, step = 0.1,
       #             animate = TRUE),
       # 
-      # sliderInput("exp", "Experience",
-      #             min = 0, max = 1,
-      #             value = 0.1, step = 0.1),
-      sliderInput("n", "Number of Customer:",
-                  min = 0, max = 2000000,
-                  value = 1000000, step = 10000,pre="#",sep=","),
-      
+      sliderInput("exp", "Experience",
+                  min = 0, max = 1,
+                  value = 0.1, step = 0.1),
+      sliderInput("n", "Market SalesQTY:",
+                  min = 0, max = 10000000,
+                  value = 5000000, step = 10000,pre="#",sep=","),
+
       
       
       
       # Include clarifying text ----
-      helpText("Version:180425 Note: กด RUN เพื่อคำนวณปีถัดไป,  Reset เพื่อเริ่มต้นใหม่และ reset customer experience"),
+      helpText("Version:180515 Note: กด RUN เพื่อคำนวณปีถัดไป,  Reset เพื่อเริ่มต้นใหม่และ reset customer experience"),
       
       # Input: actionButton() to defer the rendering of output ----
       # until the user explicitly clicks the button (rather than
@@ -72,7 +72,7 @@ server <- function(input, output) {
   sheet <- gs_title("Simulation Game")
   
   premium_ratio <- 0.25
-  total_customer <- 2000000
+  total_customer <- 1000000
   mass_sample <-total_customer*(1-premium_ratio)
   premium_sample <-total_customer*premium_ratio
   
@@ -80,7 +80,6 @@ server <- function(input, output) {
   dimension <- c(total_customer,players)
   r<-0.2
   eps<- 0.2
-  exp <- 0.3
   year<-0
   
   df <- data.frame( Name = c("Price" , "Packaging" , "MKT-T" , "MKT-O" ,"MKT-P", "Material"),
@@ -102,13 +101,13 @@ server <- function(input, output) {
                            runif(premium_sample, df$Premium[6]*(1-r), df$Premium[6]*(1+r)))
   customer<-rbind(customer_mass,customer_premium)
   
-  consumption <- floor(runif(total_customer,1,10))#each customer consume 1-9 icecreme/year
+  consumption <- floor(runif(total_customer,1,19))#each customer consume 1-9 icecreme/year
   colnames(customer_mass)<-df$Name
   colnames(customer_premium)<-df$Name
   
   
-  cal<- function(v){
-    
+  cal<- function(v,n){
+    n<- input$n/10
     player_in <- as.matrix(v$data[2:7,])
     class(player_in) <- "numeric"
     stock <- as.numeric(v$data[8,])
@@ -120,34 +119,35 @@ server <- function(input, output) {
     
     for(i in 1:players){
       if(v$data[1,i]=="Mass"){
-        filter[1:(input$n*(1-premium_ratio)),i]<-1
+        filter[1:(n*(1-premium_ratio)),i]<-1
       }else{
-        filter[(mass_sample+1):(mass_sample+input$n*premium_ratio),i]<-1
+        filter[(mass_sample+1):(mass_sample+n*premium_ratio),i]<-1
       }
     }
     
-    output<-customer %*% player_in +v$exp+ rnorm(dimension[1]*dimension[2],0,eps)+filter*100
-    max <- apply(output, 1, max)
-    output <- output - max+1
-    output[output<1]<-0
-    output <-output*filter
-    
-    consume <- output * consumption
+     calculation<-customer %*% player_in +v$exp+ rnorm(dimension[1]*dimension[2],0,eps)+filter*100
+     max <- apply(calculation, 1, max)
+     a <- calculation - max+1
+     a[a<1]<-0
+    winner <-a*filter #choice selected
 
-    min <- pmin(colSums(consume),stock)
-    
+    consume <- winner * consumption #Actual consumption to calculate total SalesQTY of each player
+
+    min <- pmin(colSums(consume),stock) #SalesQTY capped by total stock available
+
     v$out<-rbind(min,colSums(consume),stock)
-    
-     
-     temp <- t(t(output)*expTY)
-     
-     ret <- v$exp*output
+
+
+     temp <- t(t(winner)*expTY*input$exp)
+
+     ret <- v$exp*winner
      ret[ret!=0]<-1
-     v$ret <- colSums(ret)/colSums(output)
-     v$exp<- v$exp+ temp*exp*0.1
+     v$ret <- colSums(ret)/colSums(winner)
+     v$exp<- v$exp/2 + temp
      v$t1<-rbind(consume[1:10,],array("X",c(2,players)),consume[(mass_sample+1):(mass_sample+10),])
      v$t2<-rbind(v$exp[1:10,],array("X",c(2,7)),v$exp[(mass_sample+1):(mass_sample+10),])
-     v$t3 <- head(max-100,n=100)
+     v$t3 <- rbind(calculation[1:10,],array("X",c(2,players)),calculation[(mass_sample+1):(mass_sample+10),])
+     #v$t3 <- head(max-100,n=100)
      min
   }
   
@@ -181,16 +181,16 @@ server <- function(input, output) {
   values <- reactiveValues(data = NULL,out=NULL,exp=NULL,year=0)
   
   observeEvent(input$run, {
-    if(TRUE){
-      values$msg <- ""
-      values$year<-values$year+1
+    
+    values$year<-values$year+1
+      #df<- gs_read(sheet,ws="Input",range="b35:b42")
+      #qty<- as.numeric(df[1,values$year])
       values$data<- gs_read(sheet,ws="Input",range="c9:i18")
-      out<- cal(values)
+      out<- cal(values,5000)
+      
+     # values$msg <- qty
       writeData(out,values$year)
       
-    }else{
-      values$msg<- "ERROR"
-    }
 
     
   })
@@ -237,7 +237,7 @@ server <- function(input, output) {
     boxplot(customer_premium,main="Premium Customer",ylab="Decision Weighted", ylim=c(0,0.5))
   })
   round<-reactive({
-    paste("Year",values$year,values$msg)
+    paste("Year",values$year,"      qty:",values$msg)
   })
   output$round <- renderText({
     round()
