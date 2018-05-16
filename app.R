@@ -16,14 +16,14 @@ ui <- fluidPage(
       # h2(textOutput("currentTime")),
       h3(textOutput("round")),
       # 
-      # sliderInput("e", "Epsilon",
-      #             min = 0, max = 1,
-      #             value = 0.2, step = 0.1,
-      #             animate = TRUE),
-      # 
+      sliderInput("fade", "EXP fade",
+                  min = 0.5, max = 1,
+                  value = 0.75, step = 0.05,
+                  animate = TRUE),
+      
       sliderInput("exp", "Experience",
                   min = 0, max = 1,
-                  value = 0.5, step = 0.1),
+                  value = 0.1, step = 0.1),
       sliderInput("n", "Market SalesQTY:",
                   min = 0, max = 10000000,
                   value = 5000000, step = 10000,pre="#",sep=","),
@@ -143,7 +143,7 @@ server <- function(input, output) {
      ret <- v$exp*winner
      ret[ret!=0]<-1
      v$ret <- colSums(ret)/colSums(winner)
-     v$exp<- v$exp/2 + temp
+     v$exp<- v$exp*input$fade + temp
      v$t1<-rbind(consume[1:10,],array("X",c(2,players)),consume[(mass_sample+1):(mass_sample+10),])
      v$t2<-rbind(v$exp[1:10,],array("X",c(2,7)),v$exp[(mass_sample+1):(mass_sample+10),])
      v$t3 <- rbind(calculation[1:10,],array("X",c(2,players)),calculation[(mass_sample+1):(mass_sample+10),])
