@@ -18,21 +18,24 @@ ui <- fluidPage(
       # 
       sliderInput("fade", "EXP fade",
                   min = 0.5, max = 1,
-                  value = 0.75, step = 0.05,
+                  value = 0.8, step = 0.05,
                   animate = TRUE),
       
       sliderInput("exp", "Experience",
                   min = 0, max = 1,
                   value = 0.1, step = 0.1),
-      sliderInput("n", "Market SalesQTY:",
-                  min = 0, max = 10000000,
-                  value = 5000000, step = 10000,pre="#",sep=","),
-
+      sliderInput("eps", "Epsilon",
+                  min = 0, max = 1,
+                  value = 0.2, step = 0.1),
+      # sliderInput("n", "Market SalesQTY:",
+      #             min = 0, max = 10000000,
+      #             value = 5000000, step = 10000,pre="#",sep=","),
+      
       
       
       
       # Include clarifying text ----
-      helpText("Version:180515 Note: กด RUN เพื่อคำนวณปีถัดไป,  Reset เพื่อเริ่มต้นใหม่และ reset customer experience"),
+      helpText("Version:180522 Note: กด RUN เพื่อคำนวณปีถัดไป,  Reset เพื่อเริ่มต้นใหม่และ reset customer experience"),
       
       # Input: actionButton() to defer the rendering of output ----
       # until the user explicitly clicks the button (rather than
@@ -72,7 +75,7 @@ server <- function(input, output) {
   sheet <- gs_title("Simulation Game")
   
   premium_ratio <- 0.25
-  total_customer <- 1000000
+  total_customer <- 1000000  # x 10 pcs/year
   mass_sample <-total_customer*(1-premium_ratio)
   premium_sample <-total_customer*premium_ratio
   
@@ -107,7 +110,6 @@ server <- function(input, output) {
   
   
   cal<- function(v,n){
-    n<- input$n/10
     player_in <- as.matrix(v$data[2:7,])
     class(player_in) <- "numeric"
     stock <- as.numeric(v$data[8,])
@@ -125,42 +127,42 @@ server <- function(input, output) {
       }
     }
     
-     calculation<-customer %*% player_in +v$exp+ rnorm(dimension[1]*dimension[2],0,eps)+filter*100
-     max <- apply(calculation, 1, max)
-     a <- calculation - max+1
-     a[a<1]<-0
+    calculation<-customer %*% player_in +v$exp+ rnorm(dimension[1]*dimension[2],0,input$eps)+filter*100
+    max <- apply(calculation, 1, max)
+    a <- calculation - max+1
+    a[a<1]<-0
     winner <-a*filter #choice selected
-
+    
     consume <- winner *10# consumption #Actual consumption to calculate total SalesQTY of each player
-
+    
     min <- pmin(colSums(consume),stock) #SalesQTY capped by total stock available
-
+    
     v$out<-rbind(min,colSums(consume),stock)
-
-
-     temp <- t(t(winner)*expTY*input$exp)
-
-     ret <- v$exp*winner
-     ret[ret!=0]<-1
-     v$ret <- colSums(ret)/colSums(winner)
-     v$exp<- v$exp*input$fade + temp
-     v$t1<-rbind(consume[1:10,],array("X",c(2,players)),consume[(mass_sample+1):(mass_sample+10),])
-     v$t2<-rbind(v$exp[1:10,],array("X",c(2,7)),v$exp[(mass_sample+1):(mass_sample+10),])
-     v$t3 <- rbind(calculation[1:10,],array("X",c(2,players)),calculation[(mass_sample+1):(mass_sample+10),])
-     #v$t3 <- head(max-100,n=100)
-     min
+    
+    
+    temp <- t(t(winner)*expTY*input$exp)
+    
+    ret <- v$exp*winner
+    ret[ret!=0]<-1
+    v$ret <- colSums(ret)/colSums(winner)
+    v$exp<- v$exp*input$fade + temp
+    v$t1<-rbind(consume[1:10,],array("X",c(2,players)),consume[(mass_sample+1):(mass_sample+10),])
+    v$t2<-rbind(v$exp[1:10,],array("X",c(2,7)),v$exp[(mass_sample+1):(mass_sample+10),])
+    v$t3 <- rbind(calculation[1:10,],array("X",c(2,players)),calculation[(mass_sample+1):(mass_sample+10),])
+    #v$t3 <- head(max-100,n=100)
+    min
   }
   
   validation <- function(y) {
     ty <- gs_read(sheet,ws="Input",range="b9:b9")
-      return(as.numeric(ty)==y)
+    return(as.numeric(ty)==y)
     TRUE
-    }
+  }
   writeData <- function(data,y) {
     rows <- paste("c",35+y,sep="")
     gs_edit_cells(sheet, ws = "Input", anchor=rows, byrow=TRUE, input = data, trim = FALSE)
   }
-
+  
   # sliderValues <- 
   #   ({
   #     data.frame(
@@ -183,15 +185,16 @@ server <- function(input, output) {
   observeEvent(input$run, {
     
     values$year<-values$year+1
-      #df<- gs_read(sheet,ws="Input",range="b35:b42")
-      #qty<- as.numeric(df[1,values$year])
-      values$data<- gs_read(sheet,ws="Input",range="c9:i18")
-      out<- cal(values,5000)
-      
-     # values$msg <- qty
-      writeData(out,values$year)
-      
-
+    df<- gs_read(sheet,ws="Input",range="b35:b42")
+    x<- as.numeric(unlist(df))
+    qty<- x[values$year]
+    values$data<- gs_read(sheet,ws="Input",range="c9:i18")
+    out<- cal(values,qty/10)
+    
+    values$msg <- qty
+    writeData(out,values$year)
+    
+    
     
   })
   
@@ -211,13 +214,13 @@ server <- function(input, output) {
   })
   output$myExp <- renderTable({
     if (is.null(values$exp)) {return("NULL")}
-      temp_exp <- values$exp
-      temp_exp[temp_exp!=0]<- 1
-      rbind(colSums(values$exp)/colSums(temp_exp),values$ret)
+    temp_exp <- values$exp
+    temp_exp[temp_exp!=0]<- 1
+    rbind(colSums(values$exp)/colSums(temp_exp),values$ret)
     
   })
   output$t1 <- renderTable({
-     values$t1
+    values$t1
   })
   output$t2 <- renderTable({
     values$t2
