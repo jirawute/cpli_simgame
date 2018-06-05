@@ -35,7 +35,7 @@ ui <- fluidPage(
       
       
       # Include clarifying text ----
-      helpText("Version:180522 Note: กด RUN เพื่อคำนวณปีถัดไป,  Reset เพื่อเริ่มต้นใหม่และ reset customer experience"),
+      helpText("Version:180605_test Excel Note: กด RUN เพื่อคำนวณปีถัดไป,  Reset เพื่อเริ่มต้นใหม่และ reset customer experience"),
       
       # Input: actionButton() to defer the rendering of output ----
       # until the user explicitly clicks the button (rather than
@@ -72,7 +72,6 @@ server <- function(input, output) {
   suppressMessages(library(dplyr))
   library(shiny)
   
-  sheet <- gs_title("Simulation Game")
   
   premium_ratio <- 0.25
   total_customer <- 1000000  # x 10 pcs/year
@@ -153,12 +152,14 @@ server <- function(input, output) {
     min
   }
   
-  validation <- function(y) {
-    ty <- gs_read(sheet,ws="Input",range="b9:b9")
-    return(as.numeric(ty)==y)
-    TRUE
+  readData <- function() {
+    
+    sheet <- gs_title("Simulation Game Test")
+    gs_read(sheet,ws="Input",range="c9:i18")
   }
   writeData <- function(data,y) {
+    
+    sheet <- gs_title("Simulation Game Test")
     rows <- paste("c",35+y,sep="")
     gs_edit_cells(sheet, ws = "Input", anchor=rows, byrow=TRUE, input = data, trim = FALSE)
   }
@@ -188,7 +189,7 @@ server <- function(input, output) {
     df<- gs_read(sheet,ws="Input",range="b35:b42")
     x<- as.numeric(unlist(df))
     qty<- x[values$year]
-    values$data<- gs_read(sheet,ws="Input",range="c9:i18")
+    values$data<- readData()
     out<- cal(values,qty/10)
     
     values$msg <- qty
