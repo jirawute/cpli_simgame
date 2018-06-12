@@ -169,7 +169,7 @@ server <- function(input, output) {
   
   observeEvent(input$run, {
     
-    sheet <- gs_title("Simulation Game Test")
+    sheet <- gs_title("Simulation Game")
     df<- readData(sheet,"b35:b42")
     x<- as.numeric(unlist(df))
     qty<- x[values$year+1]
