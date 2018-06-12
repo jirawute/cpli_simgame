@@ -25,8 +25,8 @@ ui <- fluidPage(
                   min = 0, max = 1,
                   value = 0.1, step = 0.1),
       sliderInput("eps", "Epsilon",
-                  min = 0, max = 1,
-                  value = 0.2, step = 0.1),
+                  min = 0, max = 0.1,
+                  value = 0.1, step = 0.01),
       # sliderInput("n", "Market SalesQTY:",
       #             min = 0, max = 10000000,
       #             value = 5000000, step = 10000,pre="#",sep=","),
@@ -71,7 +71,7 @@ server <- function(input, output) {
   library(googlesheets)
   suppressMessages(library(dplyr))
   library(shiny)
-  
+  library(beepr)
   
   premium_ratio <- 0.25
   total_customer <- 1000000  # x 10 pcs/year
@@ -136,10 +136,12 @@ server <- function(input, output) {
     
     min <- pmin(colSums(consume),stock) #SalesQTY capped by total stock available
     
+    if(!is.na(min)){
+      
     v$out<-rbind(min,colSums(consume),stock)
     
     
-    temp <- t(t(winner)*expTY*input$exp)
+    temp <- t(t(winner)*expTY*input$exp) #Calculate experiece score
     
     ret <- v$exp*winner
     ret[ret!=0]<-1
@@ -149,6 +151,7 @@ server <- function(input, output) {
     v$t2<-rbind(v$exp[1:10,],array("X",c(2,7)),v$exp[(mass_sample+1):(mass_sample+10),])
     v$t3 <- rbind(calculation[1:10,],array("X",c(2,players)),calculation[(mass_sample+1):(mass_sample+10),])
     #v$t3 <- head(max-100,n=100)
+    }
     min
   }
   
@@ -166,19 +169,22 @@ server <- function(input, output) {
   
   observeEvent(input$run, {
     
-    sheet <- gs_title("Simulation Game")
-    values$year<-values$year+1
+    sheet <- gs_title("Simulation Game Test")
     df<- readData(sheet,"b35:b42")
     x<- as.numeric(unlist(df))
-    qty<- x[values$year]
+    qty<- x[values$year+1]
     values$data<- readData(sheet,"c9:i18")
     out<- cal(values,qty/10)
     
+    if(is.na(out)){
+      values$msg <- "ERROR"
+      beep(9)
+    }else{
+    values$year<-values$year+1
     values$msg <- qty
     writeData(sheet,out,values$year)
-    
-    
-    
+    beep(3)
+    }
   })
   
   observeEvent(input$reset, {
