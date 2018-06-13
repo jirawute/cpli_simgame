@@ -72,7 +72,7 @@ server <- function(input, output) {
   suppressMessages(library(dplyr))
   library(shiny)
   library(beepr)
-  
+  googlesheets.httr_oauth_cache = FALSE
   premium_ratio <- 0.25
   total_customer <- 1000000  # x 10 pcs/year
   mass_sample <-total_customer*(1-premium_ratio)
@@ -136,7 +136,7 @@ server <- function(input, output) {
     
     min <- pmin(colSums(consume),stock) #SalesQTY capped by total stock available
     
-    if(!is.na(min)){
+    if(!all(is.na(min))==FALSE){
       
     v$out<-rbind(min,colSums(consume),stock)
     
@@ -176,15 +176,15 @@ server <- function(input, output) {
     values$data<- readData(sheet,"c9:i18")
     out<- cal(values,qty/10)
     
-    if(is.na(out)){
+    if(all(is.na(out))==FALSE){
+      values$year<-values$year+1
+      values$msg <- qty
+      writeData(sheet,out,values$year)
+      beep(3)
+    }  else{
       values$msg <- "ERROR"
       beep(9)
-    }else{
-    values$year<-values$year+1
-    values$msg <- qty
-    writeData(sheet,out,values$year)
-    beep(3)
-    }
+      }
   })
   
   observeEvent(input$reset, {
