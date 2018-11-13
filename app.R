@@ -16,35 +16,37 @@ ui <- fluidPage(
       # h2(textOutput("currentTime")),
       h3(textOutput("round")),
       # 
-      sliderInput("fade", "EXP fade",
+      sliderInput("exp_fade", "EXP fade",
                   min = 0.5, max = 1,
                   value = 0.8, step = 0.05,
                   animate = TRUE),
       
-      sliderInput("exp", "Experience",
-                  min = 0, max = 1,
-                  value = 0.1, step = 0.1),
       sliderInput("eps", "Epsilon",
                   min = 0, max = 0.1,
                   value = 0.1, step = 0.01),
-      # sliderInput("n", "Market SalesQTY:",
-      #             min = 0, max = 10000000,
-      #             value = 5000000, step = 10000,pre="#",sep=","),
       
+      #sliderInput("range", "Price Limit:",
+      #            min = 1, max = 100,
+      #            value = c(30,60)),
       
+      sliderInput("premium_ratio", "no. of premium/total:",
+                  min = 1, max = 10,
+                  value = 2, step = 1),
+      
+      sliderInput("year", "YEAR:",
+                  min = 1, max = 10,
+                  value = 1, step = 1),
       
       
       # Include clarifying text ----
-      helpText("Version:180605 Note: กด RUN เพื่อคำนวณปีถัดไป,  Reset เพื่อเริ่มต้นใหม่และ reset customer experience"),
+      helpText("Version:181101 Note: กด RUN เพื่อคำนวณปีถัดไป,  Reset เพื่อเริ่มต้นใหม่และ reset customer experience"),
       
       # Input: actionButton() to defer the rendering of output ----
       # until the user explicitly clicks the button (rather than
       # doing it immediately when inputs change). This is useful if
       # the computations required to render output are inordinately
       # time-consuming.
-      actionButton("run", "RUN"),
-      
-      actionButton("reset", "Reset")
+      actionButton("run", "RUN")
       
     ),
     # Main panel for displaying outputs ----
@@ -54,10 +56,10 @@ ui <- fluidPage(
       tabsetPanel(type = "tabs",
                   tabPanel("Output", tableOutput("myOut")),
                   tabPanel("Input", tableOutput("myIn")),
-                  tabPanel("EXP", tableOutput("myExp")),
+                  tabPanel("M-EXP", tableOutput("m_Exp")),
+                  tabPanel("P-EXP", tableOutput("p_Exp")),
                   tabPanel("Temp1", tableOutput("t1")),
                   tabPanel("Temp2", tableOutput("t2")),
-                  tabPanel("Temp3", tableOutput("t3")),
                   tabPanel("Mass", plotOutput("customer_mass")),
                   tabPanel("Premium", plotOutput("customer_premium"))
       )
@@ -71,162 +73,142 @@ server <- function(input, output) {
   library(googlesheets)
   suppressMessages(library(dplyr))
   library(shiny)
-  library(beepr)
   googlesheets.httr_oauth_cache = FALSE
-  premium_ratio <- 0.25
-  total_customer <- 1000000  # x 10 pcs/year
-  mass_sample <-total_customer*(1-premium_ratio)
-  premium_sample <-total_customer*premium_ratio
+
+  mass_sample <-100*(1-0.2)
+  premium_sample <-100 *0.2
   
   players <- 7
-  dimension <- c(total_customer,players)
-  r<-0.2
-  eps<- 0.2
+  dimension <- c(100,7)  #start from 1M customer , 7 players
+  r<-0.2      # random between 1-r -> 1+r
+  eps<-    #Epsilon (volatility)
   year<-0
-  
+  options(scipen=999)
   df <- data.frame( Name = c("Price" , "Packaging" , "MKT-T" , "MKT-O" ,"MKT-P", "Material"),
                     Mass = c(0.45 , 0.2 ,0.01, 0.1,0.04, 0.2),
                     Premium = c( 0.2, 0.25, 0.05, 0.15, 0.05,0.3))
   
   
-  customer_mass<- cbind(runif(mass_sample, df$Mass[1]*(1-r), df$Mass[1]*(1+r)),
+  m_customer<- cbind(runif(mass_sample, df$Mass[1]*(1-r), df$Mass[1]*(1+r)),
                         runif(mass_sample, df$Mass[2]*(1-r), df$Mass[2]*(1+r)),
                         runif(mass_sample, df$Mass[3]*(1-r), df$Mass[3]*(1+r)),
                         runif(mass_sample, df$Mass[4]*(1-r), df$Mass[4]*(1+r)),
                         runif(mass_sample, df$Mass[5]*(1-r), df$Mass[5]*(1+r)),
                         runif(mass_sample, df$Mass[6]*(1-r), df$Mass[6]*(1+r)))
-  customer_premium<- cbind(runif(premium_sample, df$Premium[1]*(1-r), df$Premium[1]*(1+r)),
+  p_customer<- cbind(runif(premium_sample, df$Premium[1]*(1-r), df$Premium[1]*(1+r)),
                            runif(premium_sample, df$Premium[2]*(1-r), df$Premium[2]*(1+r)),
                            runif(premium_sample, df$Premium[3]*(1-r), df$Premium[3]*(1+r)),
                            runif(premium_sample, df$Premium[4]*(1-r), df$Premium[4]*(1+r)),
                            runif(premium_sample, df$Premium[5]*(1-r), df$Premium[5]*(1+r)),
                            runif(premium_sample, df$Premium[6]*(1-r), df$Premium[6]*(1+r)))
-  customer<-rbind(customer_mass,customer_premium)
+  customer<-rbind(m_customer,p_customer)
+  
+  m_exp <- array(0,c(80,7))
+  p_exp <- array(0,c(20,7))
   
   #consumption <- floor(runif(total_customer,1,19))#each customer consume 1-9 icecreme/year
-  colnames(customer_mass)<-df$Name
-  colnames(customer_premium)<-df$Name
+  colnames(m_customer)<-df$Name
+  colnames(p_customer)<-df$Name
   
-  
-  cal<- function(v,n){
-    player_in <- as.matrix(v$data[2:7,])
-    class(player_in) <- "numeric"
-    stock <- as.numeric(v$data[8,])
-    expTY <- as.numeric(v$data[9,])#Experience This Year
-    
-    if(is.null(v$exp)){v$exp <- array(0,dimension)}
-    
-    filter<-array(0,dimension)
-    
-    for(i in 1:players){
-      if(v$data[1,i]=="Mass"){
-        filter[1:(n*(1-premium_ratio)),i]<-1
+  convertInput<-function(arr,filter){
+    x<-arr
+    x[,!filter]<-0
+    x[1,filter]<-1/(sum(1/x[1,filter])*x[1,filter])
+    for(i in 2:6){
+      x[i,filter]<-x[i,filter]/sum(x[i,filter])
+    }
+    x
+  }
+  cal<- function(keyin,qty){
+    for(i in 1:input$year){  # 10 years
+      if(any(is.na(keyin[,,i]))){
+        break
       }else{
-        filter[(mass_sample+1):(mass_sample+n*premium_ratio),i]<-1
+        mass <- qty[i]*(1-input$premium_ratio/10)
+        premium <- qty[i]* (input$premium_ratio/10)
+        m_input<-convertInput(keyin[,,i],keyin[1,,i]<=30)
+        p_input<-convertInput(keyin[,,i],keyin[1,,i]>30)
+        print(input$exp_fade)#______________
+        m_exp[1:mass,] <-m_exp[1:mass,]*input$exp_fade+( m_customer[1:mass,] %*% m_input[1:6,])
+        p_exp[1:premium,] <- p_exp[1:premium,]*input$exp_fade+ p_customer[1:premium,] %*% p_input[1:6,]
+        
+        
+        output = array(0,dim=7)
+        for (j in 1:mass){
+          temp<-which.max(m_exp[j,]+rnorm(7,0,input$eps))
+          output[temp] <- output[temp]+1
+        }
+        for (j in 1:premium){
+          temp<-which.max(p_exp[j,]+rnorm(7,0,input$eps))
+          output[temp] <- output[temp]+1
+        } 
+       print(output)
       }
     }
-    
-    calculation<-customer %*% player_in +v$exp+ rnorm(dimension[1]*dimension[2],0,input$eps)+filter*100
-    max <- apply(calculation, 1, max)
-    a <- calculation - max+1
-    a[a<1]<-0
-    winner <-a*filter #choice selected
-    
-    consume <- winner *10# consumption #Actual consumption to calculate total SalesQTY of each player
-    
-    min <- pmin(colSums(consume),stock) #SalesQTY capped by total stock available
-    
-    if(!all(is.na(min))==FALSE){
+    output
       
-    v$out<-rbind(min,colSums(consume),stock)
-    
-    
-    temp <- t(t(winner)*expTY*input$exp) #Calculate experiece score
-    
-    ret <- v$exp*winner
-    ret[ret!=0]<-1
-    v$ret <- colSums(ret)/colSums(winner)
-    v$exp<- v$exp*input$fade + temp
-    v$t1<-rbind(consume[1:10,],array("X",c(2,players)),consume[(mass_sample+1):(mass_sample+10),])
-    v$t2<-rbind(v$exp[1:10,],array("X",c(2,7)),v$exp[(mass_sample+1):(mass_sample+10),])
-    v$t3 <- rbind(calculation[1:10,],array("X",c(2,players)),calculation[(mass_sample+1):(mass_sample+10),])
-    #v$t3 <- head(max-100,n=100)
-    }
-    min
   }
   
-  readData <- function(sheet,r) {
-    
-    gs_read(sheet,ws="Input",range=r)
-  }
-  writeData <- function(sheet,data,y) {
-    rows <- paste("c",35+y,sep="")
-    gs_edit_cells(sheet, ws = "Input", anchor=rows, byrow=TRUE, input = data, trim = FALSE)
+
+  writeData <- function(gs,data,y) {
+    print(data)
+    rows <- paste("M",1+y,sep="")
+    gs_edit_cells(gs, ws = "Process", anchor=rows, byrow=TRUE, input = c(1,2,3,4,5,6,7), trim = FALSE)
   }
 
   
-  values <- reactiveValues(data = NULL,out=NULL,exp=NULL,year=0)
+  values <- reactiveValues(out = NULL,p_exp=NULL,m_exp=NULL,year=0)
   
   observeEvent(input$run, {
     
-    sheet <- gs_title("Simulation Game")
-    df<- readData(sheet,"b35:b42")
-    x<- as.numeric(unlist(df))
-    qty<- x[values$year+1]
-    values$data<- readData(sheet,"c9:i18")
-    out<- cal(values,qty/10)
-    
-    if(all(is.na(out))==FALSE){
+    gs <- gs_title("CPGAME")
+    df<- gs_read(gs,ws="Process",range="B2:H71",col_names=FALSE)
+    qty<- gs_read(gs,ws="Process",range="W2:W11",col_names=FALSE)
+    values$keyin<- aperm(`dim<-`(t(df), list(7, 7, 10)),c(2,1,3))
+    values$out<- cal(values$keyin,as.matrix(qty/10))
+    if(all(is.na(values$out))==FALSE){
       values$year<-values$year+1
       values$msg <- qty
-      writeData(sheet,out,values$year)
-      beep(3)
-    }  else{
+      writeData(gs,values$out,values$year)
+    }else{
       values$msg <- "ERROR"
-      beep(9)
       }
   })
   
-  observeEvent(input$reset, {
-    values$data <- NULL
-    values$out <- NULL
-    values$exp <- NULL
-    values$year<-0
-  })  
+
   output$myIn <- renderTable({
-    if (is.null(values$data)) return("NULL")
-    values$data
+    if (is.null(values$keyin)) return("NULL")
+    values$keyin
   })
   output$myOut <- renderTable({
     if (is.null(values$out)) return("NULL")
     values$out
   })
-  output$myExp <- renderTable({
-    if (is.null(values$exp)) {return("NULL")}
-    temp_exp <- values$exp
-    temp_exp[temp_exp!=0]<- 1
-    rbind(colSums(values$exp)/colSums(temp_exp),values$ret)
+  output$m_Exp <- renderTable({
+    if (is.null(values$m_exp)) {return("NULL")}
+      values$m_exp
+    #  temp_exp <- values$exp
+  #  temp_exp[temp_exp!=0]<- 1
+  #  rbind(colSums(values$exp)/colSums(temp_exp),values$ret)
     
   })
+  output$p_Exp <- renderTable({
+    if (is.null(values$p_exp)) {return("NULL")}
+    values$p_exp
+  })
   output$t1 <- renderTable({
-    values$t1
+    
   })
   output$t2 <- renderTable({
-    values$t2
+    
   })
-  output$t3 <- renderTable({
-    values$t3
-  })
-  # Generate a summary of the data ----
-  output$customer_assumption <- renderTable({
-    sliderValues()
-  })
+
   # Generate an HTML table view of the data ----
   output$customer_mass <- renderPlot({
-    boxplot(customer_mass,main="Mass Customer",ylab="Decision Weighted", ylim=c(0,0.5))
+    boxplot(m_customer,main="Mass Customer",ylab="Decision Weighted", ylim=c(0,0.5))
   })
   output$customer_premium <- renderPlot({
-    boxplot(customer_premium,main="Premium Customer",ylab="Decision Weighted", ylim=c(0,0.5))
+    boxplot(p_customer,main="Premium Customer",ylab="Decision Weighted", ylim=c(0,0.5))
   })
   round<-reactive({
     paste("Year",values$year,"      qty:",values$msg)
