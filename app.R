@@ -17,19 +17,23 @@ ui <- fluidPage(
       h3(textOutput("round")),
       # 
       sliderInput("exp_fade", "EXP fade",
-                  min = 0.5, max = 1,
-                  value = 0.8, step = 0.05,
+                  min = 0, max = 0.2,
+                  value = 0.05, step = 0.01,
                   animate = TRUE),
       
       sliderInput("eps", "Epsilon",
-                  min = 0, max = 0.1,
+                  min = 0, max = 0.2,
                   value = 0.1, step = 0.01),
+      
+      sliderInput("mp_sep", "Mass vs Premium Price",
+                  min = 1, max = 60,
+                  value = 30, step = 1),
       
       #sliderInput("range", "Price Limit:",
       #            min = 1, max = 100,
       #            value = c(30,60)),
       
-      sliderInput("premium_ratio", "no. of premium/total:",
+      sliderInput("premium_ratio", "no. of premium/10ppl:",
                   min = 1, max = 10,
                   value = 2, step = 1),
       
@@ -39,7 +43,7 @@ ui <- fluidPage(
       
       
       # Include clarifying text ----
-      helpText("Version:181101 Note: กด RUN เพื่อคำนวณปีถัดไป,  Reset เพื่อเริ่มต้นใหม่และ reset customer experience"),
+      helpText("Version:181116"),
       
       # Input: actionButton() to defer the rendering of output ----
       # until the user explicitly clicks the button (rather than
@@ -58,8 +62,8 @@ ui <- fluidPage(
                   tabPanel("Input", tableOutput("myIn")),
                   tabPanel("M-EXP", tableOutput("m_Exp")),
                   tabPanel("P-EXP", tableOutput("p_Exp")),
-                  tabPanel("Temp1", tableOutput("t1")),
-                  tabPanel("Temp2", tableOutput("t2")),
+                #  tabPanel("Temp1", tableOutput("t1")),
+                #  tabPanel("Temp2", tableOutput("t2")),
                   tabPanel("Mass", plotOutput("customer_mass")),
                   tabPanel("Premium", plotOutput("customer_premium"))
       )
@@ -75,14 +79,11 @@ server <- function(input, output) {
   library(shiny)
   googlesheets.httr_oauth_cache = FALSE
 
-  mass_sample <-100*(1-0.2)
-  premium_sample <-100 *0.2
+  mass_sample <-2000000 #create sample of 2M+1M x 10 pcs each
+  premium_sample <-1000000
   
-  players <- 7
-  dimension <- c(100,7)  #start from 1M customer , 7 players
   r<-0.2      # random between 1-r -> 1+r
-  eps<-    #Epsilon (volatility)
-  year<-0
+  
   options(scipen=999)
   df <- data.frame( Name = c("Price" , "Packaging" , "MKT-T" , "MKT-O" ,"MKT-P", "Material"),
                     Mass = c(0.45 , 0.2 ,0.01, 0.1,0.04, 0.2),
@@ -103,8 +104,7 @@ server <- function(input, output) {
                            runif(premium_sample, df$Premium[6]*(1-r), df$Premium[6]*(1+r)))
   customer<-rbind(m_customer,p_customer)
   
-  m_exp <- array(0,c(80,7))
-  p_exp <- array(0,c(20,7))
+ 
   
   #consumption <- floor(runif(total_customer,1,19))#each customer consume 1-9 icecreme/year
   colnames(m_customer)<-df$Name
@@ -120,59 +120,62 @@ server <- function(input, output) {
     x
   }
   cal<- function(keyin,qty){
+    
+    m_exp <- array(0,c(mass_sample,7))
+    p_exp <- array(0,c(premium_sample,7))
+    
+    consumer = array(0,dim=c(10,7))
     for(i in 1:input$year){  # 10 years
       if(any(is.na(keyin[,,i]))){
+        
+        values$qty <- "INPUT ERROR"
         break
       }else{
         mass <- qty[i]*(1-input$premium_ratio/10)
         premium <- qty[i]* (input$premium_ratio/10)
-        m_input<-convertInput(keyin[,,i],keyin[1,,i]<=30)
-        p_input<-convertInput(keyin[,,i],keyin[1,,i]>30)
-        print(input$exp_fade)#______________
+        m_input<-convertInput(keyin[,,i],keyin[1,,i]<=input$mp_sep)
+        p_input<-convertInput(keyin[,,i],keyin[1,,i]>input$mp_sep)
+        print(input$year)#______________
         m_exp[1:mass,] <-m_exp[1:mass,]*input$exp_fade+( m_customer[1:mass,] %*% m_input[1:6,])
         p_exp[1:premium,] <- p_exp[1:premium,]*input$exp_fade+ p_customer[1:premium,] %*% p_input[1:6,]
         
         
-        output = array(0,dim=7)
         for (j in 1:mass){
           temp<-which.max(m_exp[j,]+rnorm(7,0,input$eps))
-          output[temp] <- output[temp]+1
+          consumer[i,temp] <- consumer[i,temp]+1
         }
         for (j in 1:premium){
           temp<-which.max(p_exp[j,]+rnorm(7,0,input$eps))
-          output[temp] <- output[temp]+1
+          consumer[i,temp] <- consumer[i,temp]+1
         } 
-       print(output)
+       print(consumer)
       }
     }
-    output
+    values$m_exp <- m_exp
+    values$p_exp <- p_exp
+    consumer
       
   }
   
 
   writeData <- function(gs,data,y) {
-    print(data)
     rows <- paste("M",1+y,sep="")
-    gs_edit_cells(gs, ws = "Process", anchor=rows, byrow=TRUE, input = c(1,2,3,4,5,6,7), trim = FALSE)
+    gs_edit_cells(gs, ws = "Process", anchor=rows, byrow=TRUE, input = data, trim = FALSE)
   }
 
   
-  values <- reactiveValues(out = NULL,p_exp=NULL,m_exp=NULL,year=0)
+  values <- reactiveValues(out = 0,p_exp=NULL,m_exp=NULL)
   
   observeEvent(input$run, {
     
-    gs <- gs_title("CPGAME")
+    gs <- gs_title("CPLI-GAME")
     df<- gs_read(gs,ws="Process",range="B2:H71",col_names=FALSE)
-    qty<- gs_read(gs,ws="Process",range="W2:W11",col_names=FALSE)
+    values$qty<- gs_read(gs,ws="Process",range="W2:W11",col_names=FALSE)
     values$keyin<- aperm(`dim<-`(t(df), list(7, 7, 10)),c(2,1,3))
-    values$out<- cal(values$keyin,as.matrix(qty/10))
-    if(all(is.na(values$out))==FALSE){
-      values$year<-values$year+1
-      values$msg <- qty
-      writeData(gs,values$out,values$year)
-    }else{
-      values$msg <- "ERROR"
-      }
+    values$out<- cal(values$keyin,as.matrix(values$qty/10))*10
+    
+      writeData(gs,values$out[input$year,],input$year)
+      
   })
   
 
@@ -211,7 +214,7 @@ server <- function(input, output) {
     boxplot(p_customer,main="Premium Customer",ylab="Decision Weighted", ylim=c(0,0.5))
   })
   round<-reactive({
-    paste("Year",values$year,"      qty:",values$msg)
+    paste("Year",input$year,"      qty:",values$qty)
   })
   output$round <- renderText({
     round()
