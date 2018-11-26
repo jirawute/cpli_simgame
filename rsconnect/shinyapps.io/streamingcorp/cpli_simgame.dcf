@@ -1,0 +1,12 @@
+name: cpli_simgame
+title: cpli_simgame
+username:
+account: streamingcorp
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 575689
+bundleId: 1704028
+url: https://streamingcorp.shinyapps.io/cpli_simgame/
+when: 1542357705.78672
+asMultiple: FALSE
+asStatic: FALSE

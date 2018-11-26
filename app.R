@@ -35,7 +35,7 @@ ui <- fluidPage(
       
       sliderInput("premium_ratio", "no. of premium/10ppl:",
                   min = 1, max = 10,
-                  value = 2, step = 1),
+                  value = 2, step = 0.5),
       
       sliderInput("year", "YEAR:",
                   min = 1, max = 10,
@@ -189,7 +189,7 @@ server <- function(input, output) {
   })
   output$m_Exp <- renderTable({
     if (is.null(values$m_exp)) {return("NULL")}
-      values$m_exp
+      summary(values$m_exp)
     #  temp_exp <- values$exp
   #  temp_exp[temp_exp!=0]<- 1
   #  rbind(colSums(values$exp)/colSums(temp_exp),values$ret)
@@ -197,7 +197,7 @@ server <- function(input, output) {
   })
   output$p_Exp <- renderTable({
     if (is.null(values$p_exp)) {return("NULL")}
-    values$p_exp
+    summary(values$p_exp)
   })
   output$t1 <- renderTable({
     
