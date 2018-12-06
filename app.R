@@ -22,7 +22,7 @@ ui <- fluidPage(
                   animate = TRUE),
       
       sliderInput("eps", "Epsilon",
-                  min = 0, max = 0.2,
+                  min = 0, max = 0.3,
                   value = 0.1, step = 0.01),
       
       sliderInput("mp_sep", "Mass vs Premium Price",
@@ -117,6 +117,7 @@ server <- function(input, output) {
     for(i in 2:6){
       x[i,filter]<-x[i,filter]/sum(x[i,filter])
     }
+    print(x)
     x
   }
   cal<- function(keyin,qty){
@@ -140,16 +141,19 @@ server <- function(input, output) {
         m_input<-convertInput(keyin[,,i],keyin[1,,i]<=input$mp_sep)
         p_input<-convertInput(keyin[,,i],keyin[1,,i]>input$mp_sep)
         print(input$year)#______________
-        m_exp[1:mass,] <-m_exp[1:mass,]*input$exp_fade+3*m_customer[1:mass,] %*% m_input[1:6,]
-        p_exp[1:premium,] <- p_exp[1:premium,]*input$exp_fade+ 3*p_customer[1:premium,] %*% p_input[1:6,]
-        
+        m_exp[1:mass,] <-m_exp[1:mass,]*input$exp_fade+m_customer[1:mass,] %*% m_input[1:6,]
+        p_exp[1:premium,] <- p_exp[1:premium,]*input$exp_fade+ p_customer[1:premium,] %*% p_input[1:6,]
         
         for (j in 1:mass){
-          temp<-which.max(m_exp[j,]+rnorm(7,0,input$eps))
+          eps<-rnorm(7,0,input$eps)
+          eps[keyin[1,,i]>input$mp_sep]<- 0
+          temp<-which.max(m_exp[j,]+eps)
           consumer[i,temp] <- consumer[i,temp]+1
         }
         for (j in 1:premium){
-          temp<-which.max(p_exp[j,]+rnorm(7,0,input$eps))
+          eps<-rnorm(7,0,input$eps)
+          eps[keyin[1,,i]<=input$mp_sep]<- 0
+          temp<-which.max(p_exp[j,]+eps)
           consumer[i,temp] <- consumer[i,temp]+1
         } 
        print(consumer)
