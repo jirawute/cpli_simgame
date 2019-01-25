@@ -18,16 +18,16 @@ ui <- fluidPage(
       # 
       sliderInput("exp_fade", "EXP fade",
                   min = 0, max = 0.2,
-                  value = 0.05, step = 0.01,
+                  value = 0.15, step = 0.01,
                   animate = TRUE),
       
       sliderInput("eps", "Epsilon",
                   min = 0, max = 0.3,
-                  value = 0.1, step = 0.01),
+                  value = 0.2, step = 0.01),
       
-      sliderInput("mp_sep", "Mass vs Premium Price",
-                  min = 1, max = 60,
-                  value = 30, step = 1),
+      #sliderInput("mp_sep", "Mass vs Premium Price",
+      #            min = 1, max = 60,
+      #            value = 30, step = 1),
       
       #sliderInput("range", "Price Limit:",
       #            min = 1, max = 100,
@@ -43,7 +43,7 @@ ui <- fluidPage(
       
       
       # Include clarifying text ----
-      helpText("Version:181116"),
+      helpText("Version:190125"),
       
       # Input: actionButton() to defer the rendering of output ----
       # until the user explicitly clicks the button (rather than
@@ -81,6 +81,8 @@ server <- function(input, output) {
 
   mass_sample <-2000000 #create sample of 2M+1M x 10 pcs each
   premium_sample <-1000000
+  mp_sep <- 30  # Using 30 to separate mass or premium market
+  
   
   r<-0.2      # random between 1-r -> 1+r
   
@@ -115,7 +117,7 @@ server <- function(input, output) {
     x[,!filter]<-0
     x[1,filter]<-1/(sum(1/x[1,filter])*x[1,filter])
     for(i in 2:6){
-      x[i,filter]<-x[i,filter]/sum(x[i,filter])
+      x[i,filter]<-x[i,filter]/max (sum(x[i,filter]),1) #At least divided by 1
     }
     print(x)
     x
@@ -138,15 +140,15 @@ server <- function(input, output) {
         print(mass)
         print(premium)
         
-        m_input<-convertInput(keyin[,,i],keyin[1,,i]<=input$mp_sep)
-        p_input<-convertInput(keyin[,,i],keyin[1,,i]>input$mp_sep)
+        m_input<-convertInput(keyin[,,i],keyin[1,,i]<=mp_sep)
+        p_input<-convertInput(keyin[,,i],keyin[1,,i]>mp_sep)
         print(input$year)#______________
         m_exp[1:mass,] <-m_exp[1:mass,]*input$exp_fade+m_customer[1:mass,] %*% m_input[1:6,]
         p_exp[1:premium,] <- p_exp[1:premium,]*input$exp_fade+ p_customer[1:premium,] %*% p_input[1:6,]
         
         for (j in 1:mass){
           eps<-rnorm(7,0,input$eps)
-          eps[keyin[1,,i]>input$mp_sep]<- 0
+          eps[keyin[1,,i]>mp_sep]<- 0
           temp<-which.max(m_exp[j,]+eps)
           consumer[i,temp] <- consumer[i,temp]+1
         }
@@ -176,7 +178,7 @@ server <- function(input, output) {
   
   observeEvent(input$run, {
     
-    gs <- gs_title("CPLI-GAME")
+    gs <- gs_title("Backup of CPLI-GAME")
     df<- gs_read(gs,ws="Process",range="B2:H71",col_names=FALSE)
     values$qty<- gs_read(gs,ws="Process",range="W2:W11",col_names=FALSE)
     values$keyin<- aperm(`dim<-`(t(df), list(7, 7, 10)),c(2,1,3))
