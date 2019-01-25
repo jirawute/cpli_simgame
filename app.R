@@ -128,7 +128,7 @@ server <- function(input, output) {
     p_exp <- array(0,c(premium_sample,7))
     
     consumer = array(0,dim=c(10,7))
-    for(i in 1:input$year){  # 10 years
+    for(i in 1:input$year){  # up to 10 years
       if(any(is.na(keyin[,,i]))){
         
         values$qty <- "INPUT ERROR"
@@ -178,7 +178,7 @@ server <- function(input, output) {
   
   observeEvent(input$run, {
     
-    gs <- gs_title("Backup of CPLI-GAME")
+    gs <- gs_title("CPLI-GAME")
     df<- gs_read(gs,ws="Process",range="B2:H71",col_names=FALSE)
     values$qty<- gs_read(gs,ws="Process",range="W2:W11",col_names=FALSE)
     values$keyin<- aperm(`dim<-`(t(df), list(7, 7, 10)),c(2,1,3))
